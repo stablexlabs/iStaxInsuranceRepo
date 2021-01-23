@@ -11,18 +11,7 @@ In this repo, we will feature a new iSTAX token, a new iSTAX staking mechanism w
 For a full write up on our insurance plans, iSTAX tokenomics, please visit (to be published to Medium later):
 https://docs.google.com/document/d/1tS28BwJYZkF4blpnlQGCSqNeQXEz7OmNAoJbQTm9t0c/edit
 
-
 Table of Contents:
-
-Libraries:
-Address.sol,
-Context.sol,
-ERC20.sol,
-EnumerableSet.sol,
-IERC20.sol,
-Ownable.sol,
-SafeERC20.sol,
-SafeMath.sol
 
 Please deploy the remaining contracts in the following order
 
@@ -59,16 +48,13 @@ iStaxMarketToken.sol: insurance market campaigns
 
 StaxStakingToken.sol: staking market campaigns
 
-
 These should only be deposited by the owner of the pools into the pools - these tokens are not distributed to anyone, but they are used to make it easier to onchain label the different markets/fixed staking terms that are launched, by naming the iStaxMarketToken & StaxStakingToken with what they are staked for and their duration/term length, etc. (STAX2W staking, or iSTAXDAIUP210331)
 
 Finally, we also included this stax distributor, which will replace our current stax superchef contract.
 
 StaxDistributor.sol: a fork of the Original sushichef MasterChef contract which has been only modified to distribute STAX from the already minted control of the dev address, rather than mint new tokens. This will be used to distribute/vest STAX rewards in the future (will not be needed right away)
 
-
-*************************************
-
+---
 
 <img src="https://github.com/stablexswapdev/insuranceRepo/raw/main/new_insurance_preview.png"> 
 

@@ -4,8 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "migrate": "truffle migrate --network bscTestnet",
     "compile": "npx hardhat compile",
+    "migrate": "truffle migrate --network bscTestnet",
     "test": "npx hardhat test"
   },
   "dependencies": {

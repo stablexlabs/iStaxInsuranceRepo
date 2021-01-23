@@ -2,8 +2,8 @@
 
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // This contract is used really only for superficial purposes so that it's easier to see which pool is which
 // Tokens are actually held in the iStaxMarket.sol contract
