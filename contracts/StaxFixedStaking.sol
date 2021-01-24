@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
-
-
 pragma solidity 0.6.12;
 
-import "./lib/IERC20.sol";
-import "./lib/SafeERC20.sol";
-import "./lib/SafeMath.sol";
-import "./lib/Ownable.sol";
-import './iStaxIssuer.sol';
-import './lib/EnumerableSet.sol';
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+
+import "./iStaxIssuer.sol";
 
 // Issuer is the Chefcontract for which this contract earns rewards for.
 // poolId is from this this Issuer as well
@@ -30,8 +29,8 @@ contract StaxFixedStaking is Ownable {
     uint256 public poolAmount;
     uint256 public totalReward;
 
-    mapping (address => uint256) public poolsInfo;
-    mapping (address => uint256) public preRewardAllocation;
+    mapping(address => uint256) public poolsInfo;
+    mapping(address => uint256) public preRewardAllocation;
     // EnumerableSet public addressSet;
 
     // Declare a set state variable
@@ -81,16 +80,17 @@ contract StaxFixedStaking is Ownable {
         return 0;
     }
 
-
     // Deposit stax tokens for Locked Reward allocation.
     function deposit(uint256 _amount) public {
-        require (block.number < startBlock, 'not deposit time');
+        require(block.number < startBlock, "not deposit time");
         stax.safeTransferFrom(address(msg.sender), address(this), _amount);
         if (poolsInfo[msg.sender] == 0) {
             addressSet.add(address(msg.sender));
         }
         poolsInfo[msg.sender] = poolsInfo[msg.sender].add(_amount);
-        preRewardAllocation[msg.sender] = preRewardAllocation[msg.sender].add((startBlock.sub(block.number)).mul(_amount));
+        preRewardAllocation[msg.sender] = preRewardAllocation[msg.sender].add(
+            (startBlock.sub(block.number)).mul(_amount)
+        );
         poolAmount = poolAmount.add(_amount);
         issuer.deposit(poolId, 0);
         emit Deposit(msg.sender, _amount);
@@ -98,7 +98,7 @@ contract StaxFixedStaking is Ownable {
 
     // Withdraw staking tokens from iStaxissuer.
     function withdraw() public {
-        require (block.number > endBlock, 'not withdraw time');
+        require(block.number > endBlock, "not withdraw time");
         if (totalReward == 0) {
             totalReward = issuer.pendingiStax(poolId, address(this));
             // Claim rewards into the pool
@@ -117,18 +117,24 @@ contract StaxFixedStaking is Ownable {
         emit Withdraw(msg.sender, reward);
     }
 
-    // EMERGENCY ONLY. 
+    // EMERGENCY ONLY.
     function emergencyWithdraw(uint256 _amount) public onlyOwner {
         stax.safeTransfer(address(msg.sender), _amount);
         emit EmergencyWithdraw(msg.sender, _amount);
     }
 
-        // EMERGENCY ERC20 Rescue ONLY - withdraw all erroneous tokens sent in to this address. 
+    // EMERGENCY ERC20 Rescue ONLY - withdraw all erroneous tokens sent in to this address.
     // cannot withdraw STAX in the contract that users deposit
     function emergencyErc20Retrieve(address token) external onlyOwner {
         require(token != address(stax), "can't withdraw stax"); // only allow retrieval for nonSTAX tokens
-        IERC20(token).safeTransfer(address(msg.sender), IERC20(token).balanceOf(address(this))); // helps remove all 
-        emit EmergencyErc20Retrieve(address(msg.sender), IERC20(token).balanceOf(address(this)));
+        IERC20(token).safeTransfer(
+            address(msg.sender),
+            IERC20(token).balanceOf(address(this))
+        ); // helps remove all
+        emit EmergencyErc20Retrieve(
+            address(msg.sender),
+            IERC20(token).balanceOf(address(this))
+        );
     }
 
     function depositToissuer(uint256 _amount) public onlyOwner {
@@ -138,6 +144,5 @@ contract StaxFixedStaking is Ownable {
 
     function harvestFromissuer() public onlyOwner {
         issuer.deposit(poolId, 0);
-        
     }
-    }
+}
