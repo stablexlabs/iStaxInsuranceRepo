@@ -1,14 +1,7 @@
 // We import Chai to use its asserting functions here.
 const { expect } = require("chai");
 
-// `describe` is a Mocha function that allows you to organize your tests. It's
-// not actually needed, but having your tests organized makes debugging them
-// easier. All Mocha functions are available in the global scope.
-
-// `describe` receives the name of a section of your test suite, and a callback.
-// The callback must define the tests of that section. This callback can't be
-// an async function.
-describe("contract testing", function () {
+describe("contract testing", () => {
   // Mocha has four functions that let you hook into the the test runner's
   // lifecyle. These are: `before`, `beforeEach`, `after`, `afterEach`.
 
@@ -18,94 +11,130 @@ describe("contract testing", function () {
   // A common pattern is to declare some variables, and assign them in the
   // `before` and `beforeEach` callbacks.
 
+  let contractFactory;
+  let staxToken;
+  let bep20Token = new Array(3); // Random tokens to create pools for
+  let iStaxToken
   let iStaxIssuer;
-  let hardhatIstaxIssuer;
   let owner;
   let addr1;
   let addr2;
   let addrs;
+  let deployedBlockNumber;
+  let amount = 5 * Math.pow(10, 5)
 
-  // `beforeEach` will run before each test, re-deploying the contract every
-  // time. It receives a callback, which can be async.
-  beforeEach(async function () {
-    // Get the ContractFactory and Signers here.
-    Token = await ethers.getContractFactory("iStaxIssuer"); //Gets the contract tothe iSTAXissuer
-    [owner, addr1, addr2, ...addrs] = await ethers.getSigners();
 
-    // To deploy our contract, we just have to call iStaxIssuer.deploy() and await
-    // for it to be deployed(), which happens onces its transaction has been
-    // mined.
-    hardhatIstaxIssuer = await iStaxIssuer.deploy();
+  beforeEach(async () => {
+
+    [owner, addr1, addr2] = await ethers.getSigners();
+
+    // Deploying contracts
+    contractFactory = await ethers.getContractFactory("StaxToken");
+    staxToken = await contractFactory.deploy();
+
+    for (i = 0; i < 3; i++) {
+      contractFactory = await ethers.getContractFactory("SafeERC20");
+      bep20Token[i] = await contractFactory.deploy();
+    }
+
+    contractFactory = await ethers.getContractFactory("iStaxToken");
+    iStaxToken = await contractFactory.deploy();
+
+    contractFactory = await ethers.getContractFactory("StaxToken");
+
+    deployedBlockNumber = await ethers.provider.getBlockNumber();
+    contractFactory = await ethers.getContractFactory("iStaxIssuer");
+    iStaxIssuer = await contractFactory.deploy(
+                    iStaxToken.address,
+                    owner.address,
+                    deployedBlockNumber + 10,
+                    deployedBlockNumber + 20,
+                    deployedBlockNumber + 35,
+                    5
+                  );
+
+    // Adding pools to iStaxIssuer
+    await iStaxIssuer.add(10, bep20Token[0].address, false);
+    await iStaxIssuer.add(20, bep20Token[1].address, false);
   });
 
-  // You can nest describe calls to create subsections.
-  describe("Deployment", function () {
-    // `it` is another Mocha function. This is the one you use to define your
-    // tests. It receives the test name, and a callback function.
+  describe("Deployment sanity check", () => {
 
-    // If the callback function is async, Mocha will `await` it.
-    it("Should set the right owner", async function () {
-      // Expect receives a value, and wraps it in an Assertion object. These
-      // objects have a lot of utility methods to assert values.
+    it("should reference the right istax contract address", async () =>  {
+        expect(await iStaxIssuer.iStax()).to.equal(iStaxToken.address);
+    })
 
-      // This test expects the owner variable stored in the contract to be equal
-      // to our Signer's owner.
-      expect(await hardhatIstaxIssuer.owner()).to.equal(owner.address);
+    it("should have the right owner", async () => {
+        await expect(await iStaxIssuer.devaddr()).to.equal(owner.address);
     });
-    // TODO: check if user has a balance.
-    // it("Should assign the total supply of tokens to the owner", async function () {
-    //   const ownerBalance = await hardhatIstaxIssuer.balanceOf(owner.address);
-    //   expect(await hardhatIstaxIssuer.totalSupply()).to.equal(ownerBalance);
-    // });
+
+    it("should have the right constructor init values", async () => {
+        expect(await iStaxIssuer.startBlock()).to.equal(deployedBlockNumber + 10);
+        expect(await iStaxIssuer.firstBonusEndBlock()).to.equal(deployedBlockNumber + 20);
+        expect(await iStaxIssuer.endOfRewardsBlock()).to.equal(deployedBlockNumber + 35);
+        expect(await iStaxIssuer.halvingDuration()).to.equal(5);
+    });
+
+    it("should have added pools", async () => {
+        const pool0 = await iStaxIssuer.poolInfo(0);
+        expect(pool0.depositToken).to.equal(bep20Token[0].address);
+        expect(pool0.allocPoint).to.equal(10);
+        const pool1 = await iStaxIssuer.poolInfo(1);
+        expect(pool1.depositToken).to.equal(bep20Token[1].address);
+        expect(pool1.allocPoint).to.equal(20);
+    })
   });
 
-  describe("Transactions", function () {
-    it("Should transfer tokens between accounts", async function () {
-      // Transfer 50 tokens from owner to addr1
-      await hardhatIstaxIssuer.transfer(addr1.address, 50);
-      const addr1Balance = await hardhatIstaxIssuer.balanceOf(addr1.address);
-      expect(addr1Balance).to.equal(50);
+  describe("Testing deposit/withdrawals", () => {
 
-      // Transfer 50 tokens from addr1 to addr2
-      // We use .connect(signer) to send a transaction from another account
-      await hardhatIstaxIssuer.connect(addr1).transfer(addr2.address, 50);
-      const addr2Balance = await hardhatIstaxIssuer.balanceOf(addr2.address);
-      expect(addr2Balance).to.equal(50);
+    it("should mint tokens for addr1", async () => {
+      await iStaxToken.mint(addr1.address, amount);
+      expect(await iStaxToken.balanceOf(addr1.address)).to.equal(amount);
+    });
+    it("should deposit then withdraw tokens", async () => {
+      await iStaxToken.mint(addr1.address, amount);
+      //iStaxToken.connect(addr1.address).approve(iStaxIssuer.address, amount);
+      //iStaxIssuer.connect(addr1.address).deposit(amount, 0);
+      //expect(await staxToken.balanceOf(addr1.address)).to.equal(0);
+      //expect(await staxToken.balanceOf(iStaxIssuer.address)).to.equal(amount);
+
+    })
+  });
+
+  describe("Testing multiplier", () => {
+    it("should return the right multiplier values 1", async () => {
+        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+            await ethers.provider.send("evm_mine");
+        }
+        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 10, deployedBlockNumber + 25)).to.equal(120); // 15 * 8
     });
 
-    it("Should fail if sender doesn’t have enough tokens", async function () {
-      const initialOwnerBalance = await hardhatIstaxIssuer.balanceOf(owner.address);
-
-      // Try to send 1 token from addr1 (0 tokens) to owner (1000 tokens).
-      // `require` will evaluate false and revert the transaction.
-      await expect(
-        hardhatIstaxIssuer.connect(addr1).transfer(owner.address, 1)
-      ).to.be.revertedWith("Not enough tokens");
-
-      // Owner balance shouldn't have changed.
-      expect(await hardhatIstaxIssuer.balanceOf(owner.address)).to.equal(
-        initialOwnerBalance
-      );
+    it("should return the right multiplier values 2", async () => {
+        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+            await ethers.provider.send("evm_mine");
+        }
+        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 21, deployedBlockNumber + 29)).to.equal(48); // 4 * 8 + 4 * 4
     });
 
-    it("Should update balances after transfers", async function () {
-      const initialOwnerBalance = await hardhatIstaxIssuer.balanceOf(owner.address);
+    it("should return the right multiplier values 3", async () => {
+        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 50) {
+            await ethers.provider.send("evm_mine");
+        }
+        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 12, deployedBlockNumber + 50)).to.equal(149); // 13 * 8 + 5 * 4 + 5 * 2 + 15 * 1
+    });
 
-      // Transfer 100 tokens from owner to addr1.
-      await hardhatIstaxIssuer.transfer(addr1.address, 100);
+    it("should exclude bounds before startBlock", async () => {
+        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+            await ethers.provider.send("evm_mine");
+        }
+        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 0, deployedBlockNumber + 23)).to.equal(104); // 13 * 8
+    });
 
-      // Transfer another 50 tokens from owner to addr2.
-      await hardhatIstaxIssuer.transfer(addr2.address, 50);
-
-      // Check balances.
-      const finalOwnerBalance = await hardhatIstaxIssuer.balanceOf(owner.address);
-      expect(finalOwnerBalance).to.equal(initialOwnerBalance - 150);
-
-      const addr1Balance = await hardhatIstaxIssuer.balanceOf(addr1.address);
-      expect(addr1Balance).to.equal(100);
-
-      const addr2Balance = await hardhatIstaxIssuer.balanceOf(addr2.address);
-      expect(addr2Balance).to.equal(50);
+    it("should exclude bounds after current block", async () => {
+        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 33) {
+            await ethers.provider.send("evm_mine");
+        }
+        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 16, deployedBlockNumber + 54)).to.equal(98); // 9 * 8 + 5 * 4 + 3 * 2
     });
   });
 });

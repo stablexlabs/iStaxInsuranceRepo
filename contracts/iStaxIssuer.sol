@@ -13,6 +13,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "./iStaxToken.sol";
+import "hardhat/console.sol";
 
 interface IMigratorChef {
     // Perform LP token migration for any future StableXswap upgrades if they may occur
@@ -61,6 +62,8 @@ contract iStaxIssuer is Ownable {
     address public devaddr;
     // Block number when first bonus iStax period ends.
     uint256 public firstBonusEndBlock;
+    // Block number which all rewards end.
+    uint256 public endOfRewardsBlock;
     // iStax tokens created per block (suggested 2, will be multiplied by BONUS_MULTIPLIER)
     uint256 public constant iStaxPerBlock = 2;
     // Bonus muliplier for early iStax earners.
@@ -93,12 +96,14 @@ contract iStaxIssuer is Ownable {
         address _devaddr,
         uint256 _startBlock,
         uint256 _firstBonusEndBlock,
+        uint256 _endOfRewardsBlock,
         uint256 _halvingDuration
     ) public {
         iStax = _iStax;
         devaddr = _devaddr;
         startBlock = _startBlock;
         firstBonusEndBlock = _firstBonusEndBlock;
+        endOfRewardsBlock = _endOfRewardsBlock;
         halvingDuration = _halvingDuration;
     }
 
@@ -183,27 +188,26 @@ contract iStaxIssuer is Ownable {
         returns (uint256 totalAccruedAmount)
     {
         require(_from <= _to, "impossible timerange");
-        uint256 endRewardsBlock =
-            firstBonusEndBlock.add(
-                halvingDuration.mul(BONUS_MULTIPLIER.mod(2)) // Assume bonus multiplier will be a multiple of 2
-            );
+        require(_from <= block.number, "_from cannot be a block in the future");
+
+        uint256 absoluteEnd = Math.min(_to, block.number);
+
         // Handle the case in which the rewards are already fixed issuance and no decay
-        if (_from > endRewardsBlock) {
+        if (_from > endOfRewardsBlock) {
             // Expect this to be the most used logic so execute first for gas savings
             (, totalAccruedAmount) = _getMultiplierHelperFunction(
                 _from,
                 _to,
-                _to,
+                absoluteEnd,
                 1
             ); // rewards are constant at minimum multiplier.
             return totalAccruedAmount;
         }
 
         uint256 currEnd; // epoch end block
-        uint256 currMultiplier; //epoch issuanceMultiplier
         uint256 currAmount; // Counter for current period rewards.
+        uint256 currMultiplier = BONUS_MULTIPLIER; //epoch issuanceMultiplier
         uint256 currStart = Math.max(_from, startBlock);
-        uint256 absoluteEnd = Math.min(_to, block.number);
         bool isDone = false;
 
         if (currStart < firstBonusEndBlock) {
@@ -213,31 +217,44 @@ contract iStaxIssuer is Ownable {
                 currStart,
                 firstBonusEndBlock,
                 absoluteEnd,
-                BONUS_MULTIPLIER
+                currMultiplier
             );
 
             if (isDone) {
                 totalAccruedAmount = currAmount; //update totalAccruedAmount and return (skip the rest of the loops)
                 return totalAccruedAmount;
             }
-            currMultiplier = BONUS_MULTIPLIER.div(2); //decrement next currMultiplier by half
             currStart = firstBonusEndBlock; //reset the next start block to the beginning of the endblock.
             currEnd = firstBonusEndBlock.add(halvingDuration); //.reset next currEnd to increment by halvingDuration
             totalAccruedAmount = currAmount; // set our totalAccruedAmount to the initial currAmount
+
         } else {
             // This case is entered if we should start counting blocks from when BONUS_MULTIPLIER is not still the initial value, but not 1
             uint256 numHalvingDurationsPassed =
-                firstBonusEndBlock.sub(currStart).div(halvingDuration); // Truncates during division
+                currStart.sub(firstBonusEndBlock).div(halvingDuration); // Truncates during division
             currMultiplier = Math.max(
                 1,
                 currMultiplier.div((2**numHalvingDurationsPassed))
             ); // Updates currMultiplier
-            currEnd = currStart.add(
-                halvingDuration.mul(numHalvingDurationsPassed)
+            currEnd = firstBonusEndBlock.add(
+                halvingDuration.mul(numHalvingDurationsPassed.add(1))
             ); // updates relevant currEnd spot.
+
+          /*  console.log("currMultiplier is: ", currMultiplier);
+            console.log("numHalvingDurationsPassed is: ", numHalvingDurationsPassed);
+            console.log("currEnd is: ", currEnd);
+            console.log("");
+
+            console.log("currend math");
+            console.log("numHalvingDurationsPassed.add(1)) is: ", numHalvingDurationsPassed.add(1));
+            console.log("halvingDuration is: ", halvingDuration);
+            console.log("halvingDuration.mul(numHalvingDurationsPassed.add(1)) is: ", halvingDuration.mul(numHalvingDurationsPassed.add(1)));
+
+*/
         }
 
         while (!isDone) {
+
             // Iterate through to accrue the values to the totalAccruedAmount that is eventually returned
             // Each time we iterate, we have to reduce the multiplier by 2 to simulate the halving.
             // We then adjust the next start-time range to add the halvingDuration, and
@@ -249,11 +266,12 @@ contract iStaxIssuer is Ownable {
                 currMultiplier
             );
             currMultiplier = Math.max(1, currMultiplier.div(2)); // Halve the currMultiplier, but ensure a floor of 1
-            currStart = currStart.add(halvingDuration); // Increment by the halving duration
+            currStart = currEnd;
             currEnd = currMultiplier == 1
                 ? absoluteEnd
                 : currEnd.add(halvingDuration); // Increment by halving duration but check for end
             totalAccruedAmount = totalAccruedAmount.add(currAmount); // Update our totalAccruedAmount and loop again
+
         }
 
         return totalAccruedAmount;
