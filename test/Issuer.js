@@ -41,8 +41,6 @@ describe("contract testing", () => {
     contractFactory = await ethers.getContractFactory("iStaxToken");
     iStaxToken = await contractFactory.deploy();
 
-    contractFactory = await ethers.getContractFactory("StaxToken");
-
     deployedBlockNumber = await ethers.provider.getBlockNumber();
     contractFactory = await ethers.getContractFactory("iStaxIssuer");
     iStaxIssuer = await contractFactory.deploy(
