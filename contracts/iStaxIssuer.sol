@@ -352,6 +352,13 @@ contract iStaxIssuer is Ownable {
         pool.latestRewardBlock = block.number;
     }
 
+    function userInfo2(uint256 _pid, address _address) external returns (uint256) {
+        console.log("amount is!!!");
+        console.log(_address);
+        console.log(userInfo[_pid][_address].amount);
+        return userInfo[_pid][_address].amount;
+    }
+
     // Deposit LP tokens to iStaxIssuer to earn iStax allocation via mining.
     // no changes from Sushi
     function deposit(uint256 _pid, uint256 _amount) external {
@@ -375,6 +382,11 @@ contract iStaxIssuer is Ownable {
                 _amount
             );
             user.amount = user.amount.add(_amount);
+            console.log("USER AMOUNTS ARE:");
+            console.log(user.amount);
+            console.log(userInfo[_pid][msg.sender].amount);
+            console.log(address(msg.sender));
+            console.log("USER AMOUNTS ARE:");
         }
         user.rewardDebt = user.amount.mul(pool.acciStaxPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);

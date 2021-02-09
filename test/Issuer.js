@@ -33,7 +33,7 @@ describe("contract testing", () => {
     staxToken = await contractFactory.deploy();
 
     for (i = 0; i < 3; i++) {
-      contractFactory = await ethers.getContractFactory("SafeERC20");
+      contractFactory = await ethers.getContractFactory("bep20Token");
       bep20Token[i] = await contractFactory.deploy();
     }
 
@@ -57,7 +57,7 @@ describe("contract testing", () => {
     await iStaxIssuer.add(10, bep20Token[0].address, false);
     await iStaxIssuer.add(20, bep20Token[1].address, false);
   });
-
+/*
   describe("Deployment sanity check", () => {
 
     it("should reference the right istax contract address", async () =>  {
@@ -83,7 +83,7 @@ describe("contract testing", () => {
         expect(pool1.depositToken).to.equal(bep20Token[1].address);
         expect(pool1.allocPoint).to.equal(20);
     })
-  });
+  });*/
 
   describe("Testing deposit/withdrawals", () => {
 
@@ -92,15 +92,22 @@ describe("contract testing", () => {
       expect(await iStaxToken.balanceOf(addr1.address)).to.equal(amount);
     });
     it("should deposit then withdraw tokens", async () => {
-      await iStaxToken.mint(addr1.address, amount);
-      //iStaxToken.connect(addr1.address).approve(iStaxIssuer.address, amount);
-      //iStaxIssuer.connect(addr1.address).deposit(amount, 0);
-      //expect(await staxToken.balanceOf(addr1.address)).to.equal(0);
-      //expect(await staxToken.balanceOf(iStaxIssuer.address)).to.equal(amount);
+      await bep20Token[0].mint(addr1.address, amount);
+      expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(amount);
+      bep20Token[0].connect(addr1).approve(iStaxIssuer.address, amount);
+      iStaxIssuer.connect(addr1).deposit(0, amount);
+      expect(await iStaxIssuer.userInfo2(0, addr1.address)).to.equal(0);
+      console.log(bep20Token[0].address);
+      console.log(addr1.address);
+      console.log(await bep20Token[0].balanceOf(addr1.address));
+      console.log("res is: ");
+      console.log(res);
+      //expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(0);
+      //expect(await bep20Token[0].balanceOf(iStaxIssuer.address)).to.equal(amount);
 
     })
   });
-
+/*
   describe("Testing multiplier", () => {
     it("should return the right multiplier values 1", async () => {
         while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
@@ -136,5 +143,5 @@ describe("contract testing", () => {
         }
         expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 16, deployedBlockNumber + 54)).to.equal(98); // 9 * 8 + 5 * 4 + 3 * 2
     });
-  });
+  });*/
 });
