@@ -20,6 +20,7 @@ describe("contract testing", () => {
   let addr1;
   let addr2;
   let addrs;
+  let res;
   let deployedBlockNumber;
   let amount = 5 * Math.pow(10, 5)
 
@@ -53,9 +54,12 @@ describe("contract testing", () => {
                     5
                   );
 
-    // Adding pools to iStaxIssuer
+    // Adding pools to iStaxIssuer.
     await iStaxIssuer.add(10, bep20Token[0].address, false);
     await iStaxIssuer.add(20, bep20Token[1].address, false);
+
+    // Transfer ownership of iStaxTokens to iStaxIssuer
+    await iStaxToken.transferOwnership(iStaxIssuer.address);
   });
 
   describe("Deployment sanity check", () => {
@@ -87,66 +91,118 @@ describe("contract testing", () => {
 
   describe("Testing deposit/withdrawals", () => {
 
-    it("should mint tokens for addr1", async () => {
-      await iStaxToken.mint(addr1.address, amount);
-      expect(await iStaxToken.balanceOf(addr1.address)).to.equal(amount);
-    });
-    it("simple deposit then withdraw sanity test", async () => {
+    it("should do a simple deposit then withdrawal", async () => {
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 10) {
+        await ethers.provider.send("evm_mine");
+      }
+
       await bep20Token[0].mint(addr1.address, amount);
       await expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(amount);
 
       // deposit
       await bep20Token[0].connect(addr1).approve(iStaxIssuer.address, amount);
       await iStaxIssuer.connect(addr1).deposit(0, amount);
-      const res = await iStaxIssuer.userInfo(0, addr1.address);
+      res = await iStaxIssuer.userInfo(0, addr1.address);
       expect(res.amount).to.equal(amount);
       expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(0);
       expect(await bep20Token[0].balanceOf(iStaxIssuer.address)).to.equal(amount);
 
       // withdraw
       const half = amount/2;
+      await iStaxIssuer.massUpdatePools();
       await iStaxIssuer.connect(addr1).withdraw(0, half);
       res = await iStaxIssuer.userInfo(0, addr1.address);
       expect(res.amount).to.equal(half);
       expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(half);
       expect(await bep20Token[0].balanceOf(iStaxIssuer.address)).to.equal(half);
     })
+
+    it("should compute reward calculations correctly", async () => {
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 10) {
+        await ethers.provider.send("evm_mine");
+      }
+
+      // deposit
+      const half = amount/2;
+      const fifth = amount/5;
+      await bep20Token[0].mint(addr1.address, amount);
+      await bep20Token[0].connect(addr1).approve(iStaxIssuer.address, amount);
+      await iStaxIssuer.connect(addr1).deposit(0, half);
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 34) {
+        await ethers.provider.send("evm_mine");
+      }
+      await iStaxIssuer.massUpdatePools();
+
+      res = await iStaxIssuer.userInfo(0, addr1.address);
+      expect(res.amount).to.equal(half);
+      expect(res.rewardDebt).to.equal(0);
+      res = await iStaxIssuer.poolInfo(0);
+      expect(await iStaxToken.balanceOf(addr1.address)).to.equal(0);
+      expect(res.acciStaxPerShare).to.equal(336000000);
+      // multiplier =  12 * 8 + 5 * 4 + 5 * 2 = 126
+      // istaxreward = 126 * 2 * 10 / 30 = 84
+      // acciStaxPerShare = 84 * 10^12 / 250000 = 336000000
+
+      // withdraw some
+      await iStaxIssuer.connect(addr1).withdraw(0, fifth);
+      res = await iStaxIssuer.userInfo(0, addr1.address);
+      expect(res.amount).to.equal(half - fifth);
+      expect(res.rewardDebt).to.equal(50); // 150000*336000000/10^12 = 50
+      expect(await iStaxToken.balanceOf(addr1.address)).to.equal(84); // 250000 * 336000000 / 10^12 = 84
+
+      // deposit more
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 67) {
+        await ethers.provider.send("evm_mine");
+      }
+      await iStaxIssuer.connect(addr1).deposit(0, half);
+      res = await iStaxIssuer.poolInfo(0);
+      expect(res.acciStaxPerShare).to.equal(476000000);
+      // multiplier = 32 * 1
+      // istaxreward = 32 * 2 * 10 / 30 = 21
+      // new acciStaxPerShare = 336000000 + 21 * 10^12 / 150000 = 476000000
+
+      res = await iStaxIssuer.userInfo(0, addr1.address);
+      expect(res.amount).to.equal(half - fifth + half);
+      expect(await bep20Token[0].balanceOf(addr1.address)).to.equal(fifth)
+      expect(await iStaxToken.balanceOf(addr1.address)).to.equal(105); // 84 + 21
+    })
   });
 
   describe("Testing multiplier", () => {
+
     it("should return the right multiplier values 1", async () => {
-        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
-            await ethers.provider.send("evm_mine");
-        }
-        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 10, deployedBlockNumber + 25)).to.equal(120); // 15 * 8
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+        await ethers.provider.send("evm_mine");
+      }
+      expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 10, deployedBlockNumber + 25)).to.equal(120); // 15 * 8
     });
 
     it("should return the right multiplier values 2", async () => {
-        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
-            await ethers.provider.send("evm_mine");
-        }
-        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 21, deployedBlockNumber + 29)).to.equal(48); // 4 * 8 + 4 * 4
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+        await ethers.provider.send("evm_mine");
+      }
+      expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 21, deployedBlockNumber + 29)).to.equal(48); // 4 * 8 + 4 * 4
     });
 
     it("should return the right multiplier values 3", async () => {
-        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 50) {
-            await ethers.provider.send("evm_mine");
-        }
-        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 12, deployedBlockNumber + 50)).to.equal(149); // 13 * 8 + 5 * 4 + 5 * 2 + 15 * 1
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 50) {
+        await ethers.provider.send("evm_mine");
+      }
+      expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 12, deployedBlockNumber + 50)).to.equal(149); // 13 * 8 + 5 * 4 + 5 * 2 + 15 * 1
     });
 
     it("should exclude bounds before startBlock", async () => {
-        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
-            await ethers.provider.send("evm_mine");
-        }
-        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 0, deployedBlockNumber + 23)).to.equal(104); // 13 * 8
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 35) {
+        await ethers.provider.send("evm_mine");
+      }
+      expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 0, deployedBlockNumber + 23)).to.equal(104); // 13 * 8
     });
 
     it("should exclude bounds after current block", async () => {
-        while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 33) {
-            await ethers.provider.send("evm_mine");
-        }
-        expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 16, deployedBlockNumber + 54)).to.equal(98); // 9 * 8 + 5 * 4 + 3 * 2
+      while(await ethers.provider.getBlockNumber() < deployedBlockNumber + 33) {
+        await ethers.provider.send("evm_mine");
+      }
+      expect(await iStaxIssuer.getMultiplier(deployedBlockNumber + 16, deployedBlockNumber + 54)).to.equal(98); // 9 * 8 + 5 * 4 + 3 * 2
     });
   });
 });

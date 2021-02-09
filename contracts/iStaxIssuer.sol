@@ -146,7 +146,6 @@ contract iStaxIssuer is Ownable {
         if (_withUpdate) {
             massUpdatePools();
         }
-
         uint256 latestRewardBlock =
             block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
@@ -259,7 +258,6 @@ contract iStaxIssuer is Ownable {
                 ? absoluteEnd
                 : currEnd.add(halvingDuration); // Increment by halving duration but check for end
             totalAccruedAmount = totalAccruedAmount.add(currAmount); // Update our totalAccruedAmount and loop again
-
         }
 
         return totalAccruedAmount;
@@ -328,6 +326,7 @@ contract iStaxIssuer is Ownable {
         }
         uint256 multiplier =
             getMultiplier(pool.latestRewardBlock, block.number);
+
         uint256 iStaxReward =
             multiplier.mul(iStaxPerBlock).mul(pool.allocPoint).div(
                 totalAllocPoint
