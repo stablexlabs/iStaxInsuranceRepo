@@ -111,8 +111,8 @@ contract iSTAXmarket is Ownable {
     // A redeem function to wipe out staked insurance token and redeem for rewards token from issuer.
     function redeem() external {
         // Cannot redeem if this market has no value of coverage - paid by fundStax
-        require(coverageOutstanding > 0, ""no redemption value"");
-        require(block.number > matureBlock, ""not redemption time"");
+        require(coverageOutstanding > 0, "no redemption value");
+        require(block.number > matureBlock, "not redemption time");
 
         uint256 claim = poolsInfo[msg.sender];
         uint256 reward = claim.mul(coverageOutstanding).div(totalDeposited);
