@@ -34,7 +34,7 @@ describe("contract testing", () => {
     staxToken = await contractFactory.deploy();
 
     for (i = 0; i < 3; i++) {
-      contractFactory = await ethers.getContractFactory("bep20Token");
+      contractFactory = await ethers.getContractFactory("BEP20Token");
       bep20Token[i] = await contractFactory.deploy();
     }
 
