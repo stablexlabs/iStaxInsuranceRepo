@@ -30,7 +30,6 @@ contract StaxFixedStaking is Ownable {
     uint256 public totalReward;
 
     mapping(address => uint256) public poolsInfo;
-    mapping(address => uint256) public preRewardAllocation;
     // EnumerableSet public addressSet;
 
     // Declare a set state variable
@@ -88,9 +87,6 @@ contract StaxFixedStaking is Ownable {
             addressSet.add(address(msg.sender));
         }
         poolsInfo[msg.sender] = poolsInfo[msg.sender].add(_amount);
-        preRewardAllocation[msg.sender] = preRewardAllocation[msg.sender].add(
-            (startBlock.sub(block.number)).mul(_amount)
-        );
         poolAmount = poolAmount.add(_amount);
         issuer.deposit(poolId, 0);
         emit Deposit(msg.sender, _amount);
@@ -137,12 +133,12 @@ contract StaxFixedStaking is Ownable {
         );
     }
 
-    function depositToissuer(uint256 _amount) public onlyOwner {
+    function depositToIssuer(uint256 _amount) public onlyOwner {
         stakingToken.safeApprove(address(issuer), _amount);
         issuer.deposit(poolId, _amount);
     }
 
-    function harvestFromissuer() public onlyOwner {
+    function harvestFromIssuer() public onlyOwner {
         issuer.deposit(poolId, 0);
     }
 }
