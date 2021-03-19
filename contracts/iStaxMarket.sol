@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 import "./iStaxIssuer.sol";
 
-contract iSTAXmarket is Ownable {
+contract iSTAXMarket is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;

@@ -407,9 +407,9 @@ contract iStaxIssuer is Ownable {
     function safeiStaxTransfer(address _to, uint256 _amount) internal {
         uint256 iStaxBal = iStax.balanceOf(address(this));
         if (_amount > iStaxBal) {
-            iStax.transfer(_to, iStaxBal);
+            IERC20(iStax).safeTransfer(_to, iStaxBal);
         } else {
-            iStax.transfer(_to, _amount);
+            IERC20(iStax).safeTransfer(_to, _amount);
         }
     }
 
