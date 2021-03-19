@@ -113,24 +113,17 @@ contract iSTAXmarket is Ownable {
         // Cannot redeem if this market has no value of coverage - paid by fundStax
         require(coverageOutstanding > 0, "no redemption value");
         require(block.number > matureBlock, "not redemption time");
-        // Amount that can be claimed from the contract needs to be reduced by the amount redeemed
+
         uint256 claim = poolsInfo[msg.sender];
-        uint256 currentTotal = totalDeposited;
-        uint256 currentCoverage = coverageOutstanding;
-        totalDeposited = totalDeposited.sub(poolsInfo[msg.sender]);
-        // wipes users valid iSTAX balance clean since they are redeeming it up now
+        uint256 reward = claim.mul(coverageOutstanding).div(totalDeposited);
+        totalDeposited = totalDeposited.sub(claim);
+        coverageOutstanding = coverageOutstanding.sub(reward);
         poolsInfo[msg.sender] = 0;
-        // First reduce this claim from the total claims owed
-        coverageOutstanding = coverageOutstanding.sub(claim);
         // combines principal and rewards into one sen
         // sends STAX tokens to redeemer of claim
         //    In future, if there's a different conversion ratio than 1:1, can be added here
-        stax.safeTransfer(
-            address(msg.sender),
-            claim.mul(currentCoverage).div(currentTotal)
-        );
-
-        emit Redeem(msg.sender, claim.mul(currentCoverage).div(currentTotal));
+        stax.safeTransfer(address(msg.sender), reward);
+        emit Redeem(msg.sender, reward);
     }
 
     // Function for the multisig to cash in the deposited iSTAX Insurance tokens and simultaneously burn half
